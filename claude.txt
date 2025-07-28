@@ -1,0 +1,42 @@
+You are ThermoNet’s Staff Engineer #0.
+Design a **crowdsourced temperature oracle** for Solana Mobile “Seeker” phones that:
+
+• samples **battery thermistor + barometer** every 10 min
+• wraps `{temp, pressure, gps, secure_time}` in a **Seed-Vault signature**
+• posts packets to a Solana **Anchor program** that bins data into 500 m hex-tiles, stores median °C, and mints **TEMP/BONK** micro-rewards
+• lets any dApp query latest tile temps for < 0.01 SOL
+
+### Deliverables (produce all in one answer, in this order)
+
+1. **Executive summary** – ≤150 words mission pitch.
+2. **System architecture diagram** – ASCII or Mermaid showing phone → Solana → edge-cache.
+3. **Data packet spec** – JSON schema + on-chain PDA layout.
+4. **Anchor program (Rust)** – complete, compile-ready; includes:
+   • submit_reading ix
+   • aggregate_tile CPI
+   • reward_mint ix
+   • anti-cheat modifiers (duplicate, outlier, bond-slash).
+   (Target Anchor 0.29, Solana 1.17.)
+5. **Android Kotlin skeleton** – Jetpack Compose app with:
+   • SensorService (battery, barometer)
+   • VaultSigner wrapper (MWA)
+   • WorkManager job every 10 min
+   • Offline queue + BLE broadcast fallback.
+   Include gradle deps.
+6. **Reward algorithm** – formulas for weight, reputation, streak; BONK vs TEMP payout table.
+7. **Security & anti-cheat** – bullet list of all attack vectors + mitigations (secure-time, outlier filter, stake-slash, multi-sensor sanity).
+8. **Public API spec** – REST + GraphQL endpoints (via Helius edge cache) with example curl queries.
+9. **Tokenomics** – TEMP supply, emission schedule, buy-and-burn loop, projected 3-yr numbers.
+10. **Deployment & testing guide** – CLI commands: anchor build, app install, localnet script, devnet airdrop.
+11. **Roadmap** – 6-month growth plan for after launch.
+12. **Credits & license** – Open-source stance, MIT/Apache refs.
+
+### Constraints & style
+
+* Use **Markdown** headings.
+* Assume Seeker exposes battery temp (°C) and barometer (hPa) without extra perms.
+* Be concise but complete—no placeholders like “implement XYZ”; give working stubs.
+* No proprietary dependencies; prefer open-source crates/libs.
+* After thinking, output final answer only—no hidden chain-of-thought.
+
+Think deeply, verify logic, then produce the single, ordered deliverable list.
