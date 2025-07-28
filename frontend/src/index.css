@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import 'leaflet/dist/leaflet.css';
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  body {
+    @apply bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-lg border border-white/20 shadow-xl;
+  }
+
+  .temperature-gradient {
+    background: linear-gradient(135deg, 
+      #3b82f6 0%,   /* Cold blue */
+      #06b6d4 20%,  /* Cool cyan */
+      #10b981 40%,  /* Mild green */
+      #f59e0b 60%,  /* Warm yellow */
+      #ef4444 80%,  /* Hot red */
+      #dc2626 100%  /* Extreme red */
+    );
+  }
+
+  .pulse-ring {
+    @apply absolute inline-flex rounded-full h-4 w-4 bg-primary-400 opacity-75 animate-ping;
+  }
+
+  .pulse-dot {
+    @apply relative inline-flex rounded-full h-3 w-3 bg-primary-500;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100 rounded-lg;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 rounded-lg hover:bg-gray-400;
+}
+
+/* Leaflet map custom styles */
+.leaflet-container {
+  @apply rounded-xl;
+}
+
+.leaflet-popup-content-wrapper {
+  @apply glass-card rounded-lg;
+}
+
+.leaflet-popup-tip {
+  @apply bg-white/70;
+}
+
+/* Custom hex tile marker */
+.hex-marker {
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.8) 0%, rgba(59, 130, 246, 0.3) 100%);
+  border: 2px solid rgba(59, 130, 246, 1);
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  position: relative;
+}
+
+.hex-marker::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  background: white;
+  border-radius: 50%;
+}
+
+/* Temperature color classes */
+.temp-cold { @apply text-blue-600 bg-blue-50; }
+.temp-cool { @apply text-cyan-600 bg-cyan-50; }
+.temp-mild { @apply text-green-600 bg-green-50; }
+.temp-warm { @apply text-yellow-600 bg-yellow-50; }
+.temp-hot { @apply text-red-600 bg-red-50; }
+.temp-extreme { @apply text-red-700 bg-red-100; }

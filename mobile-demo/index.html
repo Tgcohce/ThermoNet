@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="ThermoNet">
+    <title>ThermoNet - Temperature Oracle</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Icons -->
+    <link rel="apple-touch-icon" href="icons/icon-152x152.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16x16.png">
+    
+    <!-- External Dependencies -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav-bar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <div class="brand-icon">🌡️</div>
+                <div class="brand-text">
+                    <div class="brand-title">ThermoNet</div>
+                    <div class="brand-subtitle">Temperature Oracle</div>
+                </div>
+            </div>
+            
+            <div class="nav-menu" id="nav-menu">
+                <a href="#" class="nav-link active" data-page="demo">
+                    <span class="nav-icon">🎮</span>
+                    <span class="nav-text">Demo</span>
+                </a>
+                <a href="#" class="nav-link" data-page="real">
+                    <span class="nav-icon">📡</span>
+                    <span class="nav-text">Live Data</span>
+                </a>
+                <a href="#" class="nav-link" data-page="cities">
+                    <span class="nav-icon">🏙️</span>
+                    <span class="nav-text">Cities</span>
+                </a>
+                <a href="#" class="nav-link" data-page="device">
+                    <span class="nav-icon">📱</span>
+                    <span class="nav-text">Device</span>
+                </a>
+            </div>
+            
+            <button class="nav-toggle" id="nav-toggle">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Demo Page -->
+        <div class="page active" id="demo-page">
+            <div class="page-header">
+                <h1>🎮 Interactive Demo</h1>
+                <p>Experience ThermoNet with simulated data from 150+ virtual sensors</p>
+                
+                <div class="use-case-badges">
+                    <div class="badge">🌾 Agriculture</div>
+                    <div class="badge">🏭 Industry</div>
+                    <div class="badge">🌤️ Weather</div>
+                    <div class="badge">🏠 Smart Cities</div>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">📱</div>
+                    <div class="stat-value" id="demo-devices">152</div>
+                    <div class="stat-label">Virtual Devices</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-value" id="demo-readings">21.8K</div>
+                    <div class="stat-label">Mock Readings</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🌡️</div>
+                    <div class="stat-value" id="demo-temp">22.3°C</div>
+                    <div class="stat-label">Avg Temperature</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🪙</div>
+                    <div class="stat-value" id="demo-tokens">304K</div>
+                    <div class="stat-label">TEMP Tokens</div>
+                </div>
+            </div>
+
+            <div class="content-section">
+                <div class="section-header">
+                    <h2>🗺️ Simulated Temperature Network</h2>
+                    <div class="filter-buttons">
+                        <button class="filter-btn active" data-filter="all">All</button>
+                        <button class="filter-btn" data-filter="cold">Cold</button>
+                        <button class="filter-btn" data-filter="warm">Warm</button>
+                        <button class="filter-btn" data-filter="hot">Hot</button>
+                    </div>
+                </div>
+                <div class="map-container">
+                    <div id="demo-map" class="map"></div>
+                </div>
+            </div>
+
+            <div class="content-grid">
+                <div class="chart-section">
+                    <h3>📈 Temperature Trends</h3>
+                    <canvas id="demo-chart"></canvas>
+                </div>
+                
+                <div class="activity-section">
+                    <h3>🔄 Live Activity</h3>
+                    <div id="demo-activity" class="activity-feed"></div>
+                </div>
+            </div>
+
+            <div class="use-cases-section">
+                <h2>🎯 Real-World Use Cases</h2>
+                <div class="use-cases-grid">
+                    <div class="use-case-card">
+                        <div class="use-case-icon">🌾</div>
+                        <h3>Precision Agriculture</h3>
+                        <p>Farmers use hyperlocal temperature data to optimize irrigation, prevent frost damage, and time harvests perfectly.</p>
+                        <div class="use-case-stats">
+                            <span>+15% crop yield</span>
+                            <span>-30% water usage</span>
+                        </div>
+                    </div>
+                    
+                    <div class="use-case-card">
+                        <div class="use-case-icon">🏠</div>
+                        <h3>Smart City Planning</h3>
+                        <p>Urban planners identify heat islands, optimize green spaces, and design climate-resilient infrastructure.</p>
+                        <div class="use-case-stats">
+                            <span>500m resolution</span>
+                            <span>Real-time data</span>
+                        </div>
+                    </div>
+                    
+                    <div class="use-case-card">
+                        <div class="use-case-icon">⚡</div>
+                        <h3>Energy Grid Optimization</h3>
+                        <p>Utilities predict cooling/heating demand, optimize grid load distribution, and prevent outages.</p>
+                        <div class="use-case-stats">
+                            <span>-20% peak load</span>
+                            <span>99.9% uptime</span>
+                        </div>
+                    </div>
+                    
+                    <div class="use-case-card">
+                        <div class="use-case-icon">🚗</div>
+                        <h3>Transportation Safety</h3>
+                        <p>Road authorities detect icy conditions, optimize de-icing schedules, and alert drivers to hazards.</p>
+                        <div class="use-case-stats">
+                            <span>-40% accidents</span>
+                            <span>Early warnings</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Real Data Page -->
+        <div class="page" id="real-page">
+            <div class="page-header">
+                <h1>📡 Live Network Data</h1>
+                <p>Real temperature readings from actual Solana Mobile devices</p>
+                
+                <div class="network-status">
+                    <div class="status-indicator online">
+                        <span class="status-dot"></span>
+                        <span>Mainnet Connected</span>
+                    </div>
+                    <div class="last-update">
+                        Last update: <span id="last-update">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">📱</div>
+                    <div class="stat-value" id="real-devices">--</div>
+                    <div class="stat-label">Active Devices</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-value" id="real-readings">--</div>
+                    <div class="stat-label">Total Readings</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🌡️</div>
+                    <div class="stat-value" id="real-temp">--°C</div>
+                    <div class="stat-label">Network Avg</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⚡</div>
+                    <div class="stat-value" id="network-health">--</div>
+                    <div class="stat-label">Network Health</div>
+                </div>
+            </div>
+
+            <div class="content-section">
+                <div class="section-header">
+                    <h2>🌍 Global Temperature Network</h2>
+                    <div class="map-controls">
+                        <select id="time-range">
+                            <option value="1h">Last Hour</option>
+                            <option value="24h" selected>Last 24 Hours</option>
+                            <option value="7d">Last 7 Days</option>
+                        </select>
+                        <button id="refresh-data" class="refresh-btn">🔄 Refresh</button>
+                    </div>
+                </div>
+                <div class="map-container">
+                    <div id="real-map" class="map"></div>
+                    <div class="map-loading" id="real-loading">
+                        <div class="loading-spinner"></div>
+                        <p>Loading real network data...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="api-section">
+                <h3>🔌 API Integration</h3>
+                <div class="api-examples">
+                    <div class="api-card">
+                        <h4>REST API</h4>
+                        <code>GET /api/tiles/8a2a1072b59ffff</code>
+                        <p>Query temperature data by hex tile</p>
+                    </div>
+                    <div class="api-card">
+                        <h4>GraphQL</h4>
+                        <code>query { tilesInArea(lat: 37.7, lng: -122.4) }</code>
+                        <p>Advanced queries with filters</p>
+                    </div>
+                    <div class="api-card">
+                        <h4>WebSocket</h4>
+                        <code>ws://api.thermonet.org/live</code>
+                        <p>Real-time temperature updates</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cities Page -->
+        <div class="page" id="cities-page">
+            <div class="page-header">
+                <h1>🏙️ City Temperature Index</h1>
+                <p>Aggregated temperature data by major metropolitan areas</p>
+            </div>
+
+            <div class="search-section">
+                <div class="search-container">
+                    <input type="text" id="city-search" placeholder="Search cities..." class="search-input">
+                    <button class="search-btn">🔍</button>
+                </div>
+                <div class="sort-options">
+                    <button class="sort-btn active" data-sort="temperature">🌡️ Temperature</button>
+                    <button class="sort-btn" data-sort="devices">📱 Devices</button>
+                    <button class="sort-btn" data-sort="name">🔤 Name</button>
+                </div>
+            </div>
+
+            <div class="cities-grid" id="cities-grid">
+                <!-- Cities will be populated by JavaScript -->
+            </div>
+
+            <div class="city-comparison">
+                <h3>📊 Temperature Comparison</h3>
+                <canvas id="cities-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Device Page -->
+        <div class="page" id="device-page">
+            <div class="page-header">
+                <h1>📱 Your Device</h1>
+                <p>Manage your ThermoNet sensor and view earnings</p>
+            </div>
+
+            <div class="device-status">
+                <div class="device-card">
+                    <div class="device-info">
+                        <div class="device-icon">📱</div>
+                        <div class="device-details">
+                            <h3>ThermoNet Sensor #DX7K9</h3>
+                            <p class="device-status-text">🟢 Online • Last reading: 2 min ago</p>
+                        </div>
+                    </div>
+                    <div class="device-stats">
+                        <div class="device-stat">
+                            <span class="stat-value">🔋 85%</span>
+                            <span class="stat-label">Battery</span>
+                        </div>
+                        <div class="device-stat">
+                            <span class="stat-value">📍 3.2m</span>
+                            <span class="stat-label">GPS Accuracy</span>
+                        </div>
+                        <div class="device-stat">
+                            <span class="stat-value">📊 94%</span>
+                            <span class="stat-label">Data Quality</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="earnings-section">
+                <h3>💰 Your Earnings</h3>
+                <div class="earnings-grid">
+                    <div class="earning-card">
+                        <div class="earning-icon">🪙</div>
+                        <div class="earning-amount">15,420</div>
+                        <div class="earning-label">TEMP Tokens</div>
+                        <div class="earning-change">+152 today</div>
+                    </div>
+                    <div class="earning-card">
+                        <div class="earning-icon">🐕</div>
+                        <div class="earning-amount">1,542</div>
+                        <div class="earning-label">BONK Tokens</div>
+                        <div class="earning-change">+15 today</div>
+                    </div>
+                    <div class="earning-card">
+                        <div class="earning-icon">⭐</div>
+                        <div class="earning-amount">7,850</div>
+                        <div class="earning-label">Reputation</div>
+                        <div class="earning-change">+25 this week</div>
+                    </div>
+                    <div class="earning-card">
+                        <div class="earning-icon">🔥</div>
+                        <div class="earning-amount">28</div>
+                        <div class="earning-label">Day Streak</div>
+                        <div class="earning-change">Keep it up!</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="device-settings">
+                <h3>⚙️ Settings</h3>
+                <div class="settings-grid">
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <h4>Reading Interval</h4>
+                            <p>How often to collect temperature data</p>
+                        </div>
+                        <select class="setting-control">
+                            <option value="5">5 minutes</option>
+                            <option value="10" selected>10 minutes</option>
+                            <option value="15">15 minutes</option>
+                        </select>
+                    </div>
+                    
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <h4>Auto Submit</h4>
+                            <p>Automatically submit readings to network</p>
+                        </div>
+                        <label class="toggle">
+                            <input type="checkbox" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <h4>Privacy Mode</h4>
+                            <p>Hide precise location in public data</p>
+                        </div>
+                        <label class="toggle">
+                            <input type="checkbox">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Install Banner -->
+    <div class="install-banner" id="install-banner">
+        <div class="install-content">
+            <div class="install-icon">📱</div>
+            <div class="install-text">
+                <div class="install-title">Install ThermoNet</div>
+                <div class="install-subtitle">Add to home screen for the best experience</div>
+            </div>
+            <button class="install-btn" id="install-btn">Install</button>
+            <button class="install-close" id="install-close">✕</button>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="app.js"></script>
+</body>
+</html>

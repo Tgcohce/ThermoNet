@@ -1,0 +1,22 @@
+[package]
+name = "thermo-net"
+version = "0.1.0"
+description = "ThermoNet crowdsourced temperature oracle"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "thermo_net"
+
+[dependencies]
+anchor-lang = "0.29.0"
+anchor-spl = "0.29.0"
+h3 = "0.16"
+solana-security-txt = "1.1.1"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
