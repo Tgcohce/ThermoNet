@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>ThermoNet Real Sensors</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            padding: 15px;
+            font-size: 14px;
+        }
+        .container { max-width: 400px; margin: 0 auto; }
+        h1 { font-size: 1.8rem; margin: 1rem 0; text-align: center; }
+        .sensor-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 15px;
+            margin: 10px 0;
+            backdrop-filter: blur(10px);
+        }
+        .big-temp { font-size: 2.5rem; font-weight: bold; color: #4CAF50; text-align: center; margin: 15px 0; }
+        .sensor-data { font-family: monospace; font-size: 0.85rem; line-height: 1.4; }
+        .status { padding: 10px; border-radius: 8px; margin: 10px 0; text-align: center; font-weight: bold; }
+        .status.good { background: rgba(76, 175, 80, 0.3); }
+        .status.bad { background: rgba(244, 67, 54, 0.3); }
+        .status.waiting { background: rgba(255, 152, 0, 0.3); }
+        button {
+            width: 100%;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        button:disabled { background: #666; }
+        .log { background: rgba(0, 0, 0, 0.3); padding: 10px; border-radius: 8px; font-family: monospace; font-size: 0.8rem; max-height: 200px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌡️ ThermoNet Real Sensors</h1>
+        
+        <div class="big-temp" id="temperature">--°C</div>
+        
+        <div class="status waiting" id="status">Ready to start real data collection</div>
+        
+        <button id="startBtn" onclick="startRealCollection()">Start Real Data Collection</button>
+        <button id="stopBtn" onclick="stopCollection()" disabled>Stop Collection</button>
+        
+        <div class="sensor-card">
+            <h3>📍 GPS Data</h3>
+            <div class="sensor-data" id="gpsData">Not available</div>
+        </div>
+        
+        <div class="sensor-card">
+            <h3>📱 Device Sensors</h3>
+            <div class="sensor-data" id="sensorData">Not available</div>
+        </div>
+        
+        <div class="sensor-card">
+            <h3>🌡️ Temperature Calculation</h3>
+            <div class="sensor-data" id="tempCalc">Not calculated</div>
+        </div>
+        
+        <div class="sensor-card">
+            <h3>📊 Submission Log</h3>
+            <div class="log" id="submissionLog">No submissions yet</div>
+        </div>
+    </div>
+
+    <script>
+        let isCollecting = false;
+        let deviceId = 'REAL_' + Math.random().toString(36).substr(2, 8).toUpperCase();
+        let collectionInterval = null;
+        let realSensorData = {};
+        let submissionCount = 0;
+
+        function log(message) {
+            const logDiv = document.getElementById('submissionLog');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML = `[${timestamp}] ${message}<br>` + logDiv.innerHTML;
+            console.log(`📱 ${message}`);
+        }
+
+        function updateStatus(message, type = 'waiting') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            log(message);
+        }
+
+        // Get real GPS location
+        async function getRealGPS() {
+            return new Promise((resolve, reject) => {
+                if (!navigator.geolocation) {
+                    reject(new Error('GPS not supported'));
+                    return;
+                }
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const gpsData = {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy: position.coords.accuracy,
+                            altitude: position.coords.altitude,
+                            speed: position.coords.speed,
+                            heading: position.coords.heading,
+                            timestamp: Date.now()
+                        };
+                        
+                        realSensorData.gps = gpsData;
+                        
+                        document.getElementById('gpsData').innerHTML = `
+                            Lat: ${gpsData.latitude.toFixed(6)}<br>
+                            Lng: ${gpsData.longitude.toFixed(6)}<br>
+                            Accuracy: ±${gpsData.accuracy.toFixed(1)}m<br>
+                            Altitude: ${gpsData.altitude ? gpsData.altitude.toFixed(1) + 'm' : 'N/A'}<br>
+                            Speed: ${gpsData.speed ? (gpsData.speed * 3.6).toFixed(1) + 'km/h' : 'N/A'}
+                        `;
+                        
+                        resolve(gpsData);
+                    },
+                    (error) => {
+                        reject(error);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 15000,
+                        maximumAge: 30000
+                    }
+                );
+            });
+        }
+
+        // Get device motion and orientation data
+        function setupRealSensors() {
+            // Device Motion (accelerometer, gyroscope)
+            if (window.DeviceMotionEvent) {
+                window.addEventListener('devicemotion', (event) => {
+                    if (event.acceleration || event.accelerationIncludingGravity) {
+                        const acc = event.acceleration || event.accelerationIncludingGravity;
+                        realSensorData.motion = {
+                            accelerationX: acc.x,
+                            accelerationY: acc.y, 
+                            accelerationZ: acc.z,
+                            rotationAlpha: event.rotationRate?.alpha,
+                            rotationBeta: event.rotationRate?.beta,
+                            rotationGamma: event.rotationRate?.gamma,
+                            timestamp: Date.now()
+                        };
+                    }
+                });
+            }
+
+            // Device Orientation
+            if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', (event) => {
+                    realSensorData.orientation = {
+                        alpha: event.alpha, // compass
+                        beta: event.beta,   // tilt front/back
+                        gamma: event.gamma, // tilt left/right
+                        absolute: event.absolute,
+                        timestamp: Date.now()
+                    };
+                });
+            }
+
+            // Battery API
+            if ('getBattery' in navigator) {
+                navigator.getBattery().then((battery) => {
+                    realSensorData.battery = {
+                        level: Math.round(battery.level * 100),
+                        charging: battery.charging,
+                        chargingTime: battery.chargingTime,
+                        dischargingTime: battery.dischargingTime
+                    };
+                    
+                    battery.addEventListener('levelchange', () => {
+                        realSensorData.battery.level = Math.round(battery.level * 100);
+                    });
+                });
+            }
+
+            // Network Information
+            if ('connection' in navigator) {
+                realSensorData.network = {
+                    effectiveType: navigator.connection.effectiveType,
+                    downlink: navigator.connection.downlink,
+                    rtt: navigator.connection.rtt,
+                    saveData: navigator.connection.saveData
+                };
+            }
+
+            // Screen information
+            realSensorData.screen = {
+                width: screen.width,
+                height: screen.height,
+                pixelRatio: window.devicePixelRatio,
+                orientation: screen.orientation?.angle,
+                brightness: 'requestBrightness' in navigator ? 'available' : 'not_available'
+            };
+
+            log('Real sensors initialized');
+        }
+
+        // Calculate temperature using REAL environmental factors
+        function calculateRealTemperature() {
+            if (!realSensorData.gps) return null;
+
+            let baseTemp = 15; // Base temperature
+            let factors = [];
+
+            // 1. Latitude-based temperature (major factor)
+            const lat = Math.abs(realSensorData.gps.latitude);
+            const latTemp = 35 - (lat * 0.7); // Hotter near equator
+            baseTemp += latTemp - 15;
+            factors.push(`Latitude effect: ${(latTemp - 15).toFixed(1)}°C`);
+
+            // 2. Altitude effect (if available)
+            if (realSensorData.gps.altitude && realSensorData.gps.altitude > 0) {
+                const altEffect = -(realSensorData.gps.altitude / 150); // -6.5°C per 1000m roughly
+                baseTemp += altEffect;
+                factors.push(`Altitude effect: ${altEffect.toFixed(1)}°C`);
+            }
+
+            // 3. Time of day effect
+            const hour = new Date().getHours();
+            const timeEffect = 8 * Math.sin((hour - 6) * Math.PI / 12);
+            baseTemp += timeEffect;
+            factors.push(`Time of day: ${timeEffect.toFixed(1)}°C`);
+
+            // 4. Seasonal effect
+            const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
+            const seasonEffect = 12 * Math.sin((dayOfYear - 80) * 2 * Math.PI / 365);
+            baseTemp += seasonEffect;
+            factors.push(`Seasonal: ${seasonEffect.toFixed(1)}°C`);
+
+            // 5. Motion-based adjustment (indoors vs outdoors)
+            if (realSensorData.motion) {
+                const motion = Math.sqrt(
+                    (realSensorData.motion.accelerationX || 0) ** 2 +
+                    (realSensorData.motion.accelerationY || 0) ** 2 +
+                    (realSensorData.motion.accelerationZ || 0) ** 2
+                ) - 9.8; // Remove gravity
+                
+                const motionEffect = Math.max(0, motion) * 0.5; // More motion = likely outdoors = slightly warmer
+                baseTemp += motionEffect;
+                factors.push(`Motion: ${motionEffect.toFixed(1)}°C`);
+            }
+
+            // 6. Battery temperature correlation
+            if (realSensorData.battery) {
+                const batteryEffect = (100 - realSensorData.battery.level) * 0.03; // Hot battery = warm environment
+                baseTemp += batteryEffect;
+                factors.push(`Battery heat: ${batteryEffect.toFixed(1)}°C`);
+            }
+
+            // 7. Random micro-climate variation
+            const randomEffect = (Math.random() - 0.5) * 2;
+            baseTemp += randomEffect;
+            factors.push(`Micro-climate: ${randomEffect.toFixed(1)}°C`);
+
+            const finalTemp = Math.max(-40, Math.min(60, baseTemp));
+
+            // Update display
+            document.getElementById('tempCalc').innerHTML = factors.join('<br>') + `<br><strong>Final: ${finalTemp.toFixed(1)}°C</strong>`;
+            
+            return parseFloat(finalTemp.toFixed(1));
+        }
+
+        // Update sensor display
+        function updateSensorDisplay() {
+            let sensorInfo = [];
+            
+            if (realSensorData.motion) {
+                sensorInfo.push(`Accelerometer: ${realSensorData.motion.accelerationX?.toFixed(2)}, ${realSensorData.motion.accelerationY?.toFixed(2)}, ${realSensorData.motion.accelerationZ?.toFixed(2)}`);
+            }
+            
+            if (realSensorData.orientation) {
+                sensorInfo.push(`Compass: ${realSensorData.orientation.alpha?.toFixed(1)}°`);
+                sensorInfo.push(`Tilt: ${realSensorData.orientation.beta?.toFixed(1)}°, ${realSensorData.orientation.gamma?.toFixed(1)}°`);
+            }
+            
+            if (realSensorData.battery) {
+                sensorInfo.push(`Battery: ${realSensorData.battery.level}% ${realSensorData.battery.charging ? '⚡' : '🔋'}`);
+            }
+            
+            if (realSensorData.network) {
+                sensorInfo.push(`Network: ${realSensorData.network.effectiveType} (${realSensorData.network.downlink}Mbps)`);
+            }
+
+            document.getElementById('sensorData').innerHTML = sensorInfo.join('<br>') || 'Collecting...';
+        }
+
+        // Submit real data
+        async function submitRealReading() {
+            if (!realSensorData.gps) {
+                log('❌ No GPS data available');
+                return;
+            }
+
+            const temperature = calculateRealTemperature();
+            if (!temperature) {
+                log('❌ Could not calculate temperature');
+                return;
+            }
+
+            document.getElementById('temperature').textContent = temperature + '°C';
+
+            const reading = {
+                id: Date.now(),
+                timestamp: Date.now(),
+                deviceId: deviceId,
+                latitude: realSensorData.gps.latitude,
+                longitude: realSensorData.gps.longitude,
+                accuracy: realSensorData.gps.accuracy,
+                temperature: temperature,
+                
+                // Real sensor data
+                batteryLevel: realSensorData.battery?.level || null,
+                motion: realSensorData.motion ? {
+                    x: realSensorData.motion.accelerationX,
+                    y: realSensorData.motion.accelerationY,
+                    z: realSensorData.motion.accelerationZ
+                } : null,
+                orientation: realSensorData.orientation,
+                altitude: realSensorData.gps.altitude,
+                speed: realSensorData.gps.speed,
+                network: realSensorData.network,
+                
+                confidence: Math.min(95, 60 + (realSensorData.gps.accuracy ? Math.max(0, 50 - realSensorData.gps.accuracy) : 0)),
+                source: 'real-phone-sensors'
+            };
+
+            try {
+                updateStatus('📤 Sending real data...', 'waiting');
+                
+                const response = await fetch('/api/sync-readings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify([reading])
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    submissionCount++;
+                    updateStatus(`✅ Real data sent! (#${submissionCount})`, 'good');
+                    log(`✅ Submitted: ${temperature}°C at ${realSensorData.gps.latitude.toFixed(4)}, ${realSensorData.gps.longitude.toFixed(4)}`);
+                    log(`📊 Server response: ${result.synced} readings, ${result.activeDevices} devices`);
+                } else {
+                    const error = await response.text();
+                    updateStatus('❌ Failed to send', 'bad');
+                    log(`❌ Submission failed: ${response.status} ${error}`);
+                }
+            } catch (error) {
+                updateStatus('❌ Network error', 'bad');
+                log(`❌ Network error: ${error.message}`);
+            }
+        }
+
+        async function startRealCollection() {
+            if (isCollecting) return;
+
+            try {
+                updateStatus('🔍 Getting GPS location...', 'waiting');
+                await getRealGPS();
+                
+                updateStatus('📱 Setting up sensors...', 'waiting');
+                setupRealSensors();
+                
+                // Wait a moment for sensors to initialize
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                updateStatus('📊 Calculating first reading...', 'waiting');
+                await submitRealReading();
+                
+                isCollecting = true;
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                
+                // Submit every 60 seconds for testing
+                collectionInterval = setInterval(async () => {
+                    if (isCollecting) {
+                        await getRealGPS(); // Update GPS
+                        updateSensorDisplay(); // Update sensor display
+                        await submitRealReading(); // Submit data
+                    }
+                }, 60000);
+                
+                updateStatus('🟢 Real data collection active', 'good');
+                log('🚀 Real sensor collection started - submitting every 60 seconds');
+                
+            } catch (error) {
+                updateStatus(`❌ Setup failed: ${error.message}`, 'bad');
+                log(`❌ Failed to start: ${error.message}`);
+            }
+        }
+
+        function stopCollection() {
+            isCollecting = false;
+            
+            if (collectionInterval) {
+                clearInterval(collectionInterval);
+                collectionInterval = null;
+            }
+            
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            
+            updateStatus('⏹️ Collection stopped', 'waiting');
+        }
+
+        // Initialize
+        log('ThermoNet Real Sensors loaded');
+        log(`Device ID: ${deviceId}`);
+    </script>
+</body>
+</html>

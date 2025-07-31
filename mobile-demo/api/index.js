@@ -1,12 +1,15 @@
 // Vercel Serverless Function for ThermoNet API
 const url = require('url');
 
-// In-memory storage for demo (use a database in production)
-let realData = {
-  readings: [],
-  devices: new Map(),
-  lastSync: Date.now()
-};
+// Persistent storage using global object (survives across requests in same instance)
+if (!global.realData) {
+  global.realData = {
+    readings: [],
+    devices: new Map(),
+    lastSync: Date.now()
+  };
+}
+let realData = global.realData;
 
 // Mock data generators
 function generateMockTemperatures() {
@@ -117,6 +120,9 @@ module.exports = async (req, res) => {
 };
 
 function handleTemperatures(req, res, query) {
+  console.log(`🌡️ handleTemperatures called with filter: ${query.filter}`);
+  console.log(`📊 Total stored readings: ${realData.readings.length}`);
+  
   // Combine real and mock data
   let realReadings = realData.readings.map(r => ({
     id: r.id,
@@ -132,6 +138,8 @@ function handleTemperatures(req, res, query) {
     accuracy: r.accuracy || 5.0,
     source: 'real-device'
   })).filter(r => r.lat && r.lng);
+  
+  console.log(`📱 Mapped real readings: ${realReadings.length}`);
   
   let mockReadings = [...mockData.temperatures];
   let data = [...realReadings, ...mockReadings];
@@ -163,9 +171,12 @@ function handleTemperatures(req, res, query) {
     );
   }
   
+  console.log(`📤 Sending response: ${data.length} total readings (${realReadings.length} real, ${mockReadings.length} mock)`);
+  
   res.status(200).json({
     success: true,
     data: data,
+    readings: data, // Add this for backward compatibility
     count: data.length,
     realReadings: realReadings.length,
     mockReadings: mockReadings.length,
@@ -209,10 +220,13 @@ function handleStats(req, res) {
   const realDeviceCount = realData.devices.size;
   const totalRealReadings = realData.readings.length;
   
+  console.log(`📊 Stats requested: ${realDeviceCount} devices, ${totalRealReadings} readings`);
+  
   let avgRealTemp = null;
   if (realData.readings.length > 0) {
     const totalTemp = realData.readings.reduce((sum, r) => sum + (r.temperature || 0), 0);
     avgRealTemp = parseFloat((totalTemp / realData.readings.length).toFixed(1));
+    console.log(`🌡️ Average real temp: ${avgRealTemp}°C`);
   }
   
   const stats = {
@@ -335,10 +349,17 @@ async function handleSyncReadings(req, res) {
     });
     
     console.log(`📊 Synced ${readings.length} real readings from ${processedReadings[0]?.deviceId}`);
+    console.log(`📱 Total real readings: ${realData.readings.length}, Active devices: ${realData.devices.size}`);
     
     // Keep only last 1000 readings
     if (realData.readings.length > 1000) {
       realData.readings = realData.readings.slice(-1000);
+    }
+    
+    // Log the actual data being stored
+    const latestReading = processedReadings[0];
+    if (latestReading) {
+      console.log(`🌡️ Latest: ${latestReading.temperature}°C at ${latestReading.latitude?.toFixed(4)}, ${latestReading.longitude?.toFixed(4)}`);
     }
     
     res.status(200).json({

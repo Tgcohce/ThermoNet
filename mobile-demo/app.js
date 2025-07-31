@@ -513,15 +513,39 @@ class ThermoNetApp {
 
     async updateRealStats() {
         try {
-            // Try to fetch real network stats from API
+            // Fetch REAL network stats from API (not mock data)
+            console.log('📊 Fetching REAL stats from API...');
             const response = await fetch('/api/stats');
             if (response.ok) {
-                const stats = await response.json();
-                document.getElementById('real-devices').textContent = stats.activeDevices || '0';
-                document.getElementById('real-readings').textContent = stats.totalReadings || '0';
-                document.getElementById('real-temp').textContent = stats.avgTemperature ? `${stats.avgTemperature}°C` : '--°C';
-                document.getElementById('network-health').textContent = stats.networkHealth || '--';
-                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+                const result = await response.json();
+                const stats = result.data || result;
+                
+                console.log('📊 Full stats response:', stats);
+                
+                // Show ONLY real device stats (ignore mock/total numbers)
+                const realDevices = stats.realDevices || 0;
+                const realReadings = stats.realReadings || 0;
+                
+                document.getElementById('real-devices').textContent = realDevices.toString();
+                document.getElementById('real-readings').textContent = realReadings.toString();
+                
+                // Only show average if we have real readings
+                if (realReadings > 0 && stats.avgTemperature) {
+                    document.getElementById('real-temp').textContent = `${stats.avgTemperature}°C`;
+                } else {
+                    document.getElementById('real-temp').textContent = '--°C';
+                }
+                
+                document.getElementById('network-health').textContent = realReadings > 0 ? '100%' : 'Starting...';
+                document.getElementById('last-update').textContent = realReadings > 0 ? new Date(stats.lastUpdate || Date.now()).toLocaleTimeString() : 'Waiting for data';
+                
+                console.log(`📊 REAL stats: ${realDevices} devices, ${realReadings} readings`);
+                
+                if (realReadings > 0) {
+                    console.log('✅ SUCCESS! Your phone data is in the system!');
+                } else {
+                    console.log('📱 No real data yet. Check that your phone app is submitting data.');
+                }
             } else {
                 // Show "no data" state instead of mock data
                 this.showNoRealDataState();
@@ -572,49 +596,96 @@ class ThermoNetApp {
 
     async addGlobalMarkers() {
         try {
-            // Try to fetch real temperature readings from API
-            const response = await fetch('/api/temperatures');
+            // Clear existing markers first
+            this.realMap.eachLayer(layer => {
+                if (layer instanceof L.CircleMarker) {
+                    this.realMap.removeLayer(layer);
+                }
+            });
+            
+            // Fetch ONLY real temperature readings (filter=real)
+            console.log('🔄 Fetching REAL data from API...');
+            const response = await fetch('/api/temperatures?filter=real');
             if (response.ok) {
-                const data = await response.json();
-                const realReadings = data.readings || [];
+                const result = await response.json();
+                console.log('📊 Full API Response:', result);
+                
+                // The API returns data in result.data (not result.readings)
+                const realReadings = result.data || [];
+                
+                console.log(`🌡️ Found ${realReadings.length} REAL temperature readings:`);
+                realReadings.forEach((r, i) => console.log(`  ${i + 1}. ${r.deviceId}: ${r.temperature}°C at ${r.lat}, ${r.lng}`));
                 
                 if (realReadings.length > 0) {
-                    // Show real data markers
-                    realReadings.forEach(reading => {
-                        if (reading.lat && reading.lng && reading.temperature) {
+                    let markersAdded = 0;
+                    
+                    // Show REAL data markers
+                    realReadings.forEach((reading, index) => {
+                        if (reading.lat && reading.lng && reading.temperature !== undefined) {
                             const marker = L.circleMarker([reading.lat, reading.lng], {
-                                radius: 8,
+                                radius: 15,
                                 fillColor: this.getTemperatureColor(reading.temperature),
                                 color: '#ffffff',
-                                weight: 2,
+                                weight: 4,
                                 opacity: 1,
-                                fillOpacity: 0.8
+                                fillOpacity: 0.9
                             }).addTo(this.realMap);
+                            
+                            markersAdded++;
+                            console.log(`✅ Added REAL marker ${markersAdded}: ${reading.temperature}°C at ${reading.lat}, ${reading.lng}`);
 
                             marker.bindPopup(`
-                                <div style="text-align: center; padding: 10px;">
-                                    <h4 style="color: #667eea; margin-bottom: 10px;">🌡️ Real Reading</h4>
-                                    <div style="font-size: 24px; font-weight: bold; color: ${this.getTemperatureColor(reading.temperature)};">
+                                <div style="text-align: center; padding: 15px; min-width: 220px;">
+                                    <h4 style="color: #667eea; margin-bottom: 10px;">📱 REAL Phone Data</h4>
+                                    <div style="font-size: 32px; font-weight: bold; color: ${this.getTemperatureColor(reading.temperature)}; margin-bottom: 15px;">
                                         ${reading.temperature}°C
                                     </div>
-                                    <div style="margin-top: 10px; color: #666; font-size: 12px;">
-                                        Device: ${reading.deviceId}<br>
-                                        ${new Date(reading.timestamp).toLocaleString()}
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: left; font-size: 14px; background: #f8f9fa; padding: 10px; border-radius: 8px;">
+                                        <div><strong>Device:</strong> ${reading.deviceId}</div>
+                                        <div><strong>Accuracy:</strong> ${reading.accuracy ? reading.accuracy.toFixed(1) + 'm' : 'N/A'}</div>
+                                        <div><strong>Confidence:</strong> ${reading.confidence || 'N/A'}%</div>
+                                        <div><strong>Source:</strong> ${reading.source || 'phone'}</div>
+                                    </div>
+                                    <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 12px; color: #666;">
+                                        <div><strong>Time:</strong> ${new Date(reading.timestamp).toLocaleString()}</div>
+                                        <div><strong>Location:</strong> ${reading.lat.toFixed(6)}, ${reading.lng.toFixed(6)}</div>
+                                    </div>
+                                    <div style="margin-top: 10px; padding: 8px; background: #e8f5e8; border-radius: 6px; font-size: 11px; color: #2e7d32; font-weight: bold;">
+                                        ✅ This is REAL data from your phone!
                                     </div>
                                 </div>
                             `);
+                        } else {
+                            console.log(`⚠️ Skipping invalid reading ${index + 1}:`, reading);
                         }
                     });
+                    
+                    console.log(`🗺️ Added ${markersAdded} REAL markers to Live Data map`);
+                    
+                    // Focus map on real data
+                    if (markersAdded > 0) {
+                        const validReadings = realReadings.filter(r => r.lat && r.lng);
+                        if (validReadings.length === 1) {
+                            const reading = validReadings[0];
+                            this.realMap.setView([reading.lat, reading.lng], 14);
+                            console.log(`🎯 Focused map on your location: ${reading.lat}, ${reading.lng}`);
+                        }
+                    }
+                    
+                    if (markersAdded === 0) {
+                        console.log('⚠️ No valid REAL markers could be added');
+                        this.showNoRealDataState();
+                    }
                 } else {
-                    // No real data available - show empty state
+                    console.log('💭 No REAL readings found in API response');
                     this.showNoRealDataState();
                 }
             } else {
-                // API not available - show empty state
+                console.error('❌ API request failed:', response.status, response.statusText);
                 this.showNoRealDataState();
             }
         } catch (error) {
-            console.log('No real temperature data available yet');
+            console.error('❌ Error fetching REAL data:', error);
             this.showNoRealDataState();
         }
     }
