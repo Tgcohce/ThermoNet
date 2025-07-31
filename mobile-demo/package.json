@@ -1,0 +1,41 @@
+{
+  "name": "thermonet-mobile",
+  "version": "1.0.0",
+  "description": "ThermoNet Temperature Oracle Mobile App",
+  "main": "demo-server.js",
+  "scripts": {
+    "start": "node demo-server.js",
+    "dev": "node demo-server.js",
+    "build": "cp index.html app.js styles.css manifest.json sw.js public/ && cp -r icons public/ 2>/dev/null || echo 'Build complete'",
+    "vercel-dev": "vercel dev",
+    "deploy": "vercel --prod",
+    "android": "npx cap run android",
+    "android:build": "npx cap build android",
+    "ios": "npx cap run ios",
+    "sync": "npx cap sync",
+    "install-capacitor": "npm install @capacitor/cli @capacitor/core @capacitor/android @capacitor/geolocation @capacitor/device @capacitor/network",
+    "init-capacitor": "npx cap init ThermoNet org.thermonet.app && npx cap add android",
+    "pwa-builder": "pwa-builder http://localhost:8080 -p android"
+  },
+  "keywords": [
+    "temperature",
+    "oracle",
+    "solana",
+    "mobile",
+    "pwa",
+    "sensors"
+  ],
+  "author": "ThermoNet Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.1",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/core": "^6.2.1",
+    "@capacitor/device": "^6.0.2",
+    "@capacitor/geolocation": "^6.1.0",
+    "@capacitor/network": "^6.0.3"
+  }
+}

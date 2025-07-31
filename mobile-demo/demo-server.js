@@ -9,7 +9,7 @@ const path = require('path');
 const url = require('url');
 
 const PORT = process.env.PORT || 8080;
-const HOST = process.env.HOST || 'localhost';
+const HOST = process.env.HOST || '0.0.0.0'; // Listen on all interfaces for mobile access
 
 // MIME types
 const mimeTypes = {
@@ -27,6 +27,13 @@ const mimeTypes = {
   '.woff2': 'font/woff2',
   '.ttf': 'font/ttf',
   '.eot': 'application/vnd.ms-fontobject'
+};
+
+// Real data storage
+const realData = {
+  readings: [], // Store real sensor readings from mobile devices
+  devices: new Map(), // Track device information
+  lastSync: Date.now()
 };
 
 // Mock API data
@@ -185,7 +192,26 @@ function handleApiRequest(req, res, pathname, query) {
 }
 
 function handleTemperatures(req, res, query) {
-  let data = [...mockData.temperatures];
+  // Combine real and mock data for demo purposes
+  let realReadings = realData.readings.map(r => ({
+    id: r.id,
+    lat: r.latitude,
+    lng: r.longitude,
+    temperature: r.temperature,
+    pressure: 1013 + (Math.random() - 0.5) * 20, // Simulated pressure
+    humidity: 60 + (Math.random() - 0.5) * 40, // Simulated humidity
+    timestamp: r.timestamp,
+    deviceId: r.deviceId,
+    hexId: r.hexId,
+    confidence: r.confidence,
+    accuracy: r.accuracy || 5.0,
+    source: 'real-device'
+  })).filter(r => r.lat && r.lng); // Only include readings with valid coordinates
+  
+  let mockReadings = [...mockData.temperatures].map(r => ({ ...r, source: 'mock' }));
+  
+  // Prioritize real data - if we have real readings, show them prominently
+  let data = [...realReadings, ...mockReadings];
   
   // Apply filters
   if (query.filter) {
@@ -198,6 +224,9 @@ function handleTemperatures(req, res, query) {
         break;
       case 'hot':
         data = data.filter(r => r.temperature >= 25);
+        break;
+      case 'real':
+        data = realReadings; // Only real device data
         break;
     }
   }
@@ -216,6 +245,8 @@ function handleTemperatures(req, res, query) {
     success: true,
     data: data,
     count: data.length,
+    realReadings: realReadings.length,
+    mockReadings: mockReadings.length,
     timestamp: Date.now()
   }));
 }
@@ -256,11 +287,26 @@ function handleCities(req, res, query) {
 }
 
 function handleStats(req, res) {
-  // Add some variation to stats
+  // Calculate real stats from actual data
+  const realDeviceCount = realData.devices.size;
+  const totalRealReadings = realData.readings.length;
+  
+  // Calculate average temperature from real readings
+  let avgRealTemp = null;
+  if (realData.readings.length > 0) {
+    const totalTemp = realData.readings.reduce((sum, r) => sum + (r.temperature || 0), 0);
+    avgRealTemp = parseFloat((totalTemp / realData.readings.length).toFixed(1));
+  }
+  
+  // Combine with mock stats
   const stats = {
     ...mockData.stats,
-    totalDevices: mockData.stats.totalDevices + Math.floor((Math.random() - 0.5) * 20),
-    avgTemperature: parseFloat((mockData.stats.avgTemperature + (Math.random() - 0.5) * 2).toFixed(1)),
+    totalDevices: mockData.stats.totalDevices + realDeviceCount,
+    totalReadings: mockData.stats.totalReadings + totalRealReadings,
+    avgTemperature: avgRealTemp || parseFloat((mockData.stats.avgTemperature + (Math.random() - 0.5) * 2).toFixed(1)),
+    realDevices: realDeviceCount,
+    realReadings: totalRealReadings,
+    lastSync: realData.lastSync,
     lastUpdate: Date.now()
   };
   
@@ -295,7 +341,8 @@ function handleTiles(req, res, query) {
 }
 
 function handleDevice(req, res) {
-  const deviceData = {
+  // Try to get real device data from the most recent active device
+  let deviceData = {
     deviceId: 'DX7K9',
     status: 'online',
     battery: 85,
@@ -316,6 +363,35 @@ function handleDevice(req, res) {
     lastReading: Date.now() - 120000 // 2 minutes ago
   };
   
+  // If we have real device data, use it
+  if (realData.devices.size > 0) {
+    const mostRecentDevice = [...realData.devices.entries()]
+      .sort((a, b) => b[1].lastSeen - a[1].lastSeen)[0];
+    
+    if (mostRecentDevice) {
+      const [deviceId, deviceInfo] = mostRecentDevice;
+      const latestReading = realData.readings
+        .filter(r => r.deviceId === deviceId)
+        .sort((a, b) => b.timestamp - a.timestamp)[0];
+      
+      deviceData = {
+        ...deviceData,
+        deviceId: deviceId,
+        battery: deviceInfo.batteryLevel || deviceData.battery,
+        temperature: latestReading?.temperature || deviceData.temperature,
+        gpsAccuracy: latestReading?.accuracy || deviceData.gpsAccuracy,
+        dataQuality: deviceInfo.confidence || deviceData.dataQuality,
+        lastReading: deviceInfo.lastSeen,
+        totalReadings: deviceInfo.totalReadings,
+        earnings: {
+          ...deviceData.earnings,
+          tempTokens: deviceData.earnings.tempTokens + (deviceInfo.totalReadings * 10),
+          bonkTokens: deviceData.earnings.bonkTokens + Math.floor(deviceInfo.totalReadings / 10)
+        }
+      };
+    }
+  }
+  
   res.writeHead(200);
   res.end(JSON.stringify({
     success: true,
@@ -333,15 +409,56 @@ function handleSyncReadings(req, res) {
     req.on('end', () => {
       try {
         const readings = JSON.parse(body);
-        console.log(`Synced ${readings.length} temperature readings`);
+        
+        // Process and store real readings
+        const processedReadings = readings.map(reading => {
+          // Add server-side validation and processing
+          return {
+            ...reading,
+            serverTimestamp: Date.now(),
+            processed: true,
+            hexId: coordsToHexId(reading.latitude, reading.longitude)
+          };
+        });
+        
+        // Store in real data
+        realData.readings.push(...processedReadings);
+        realData.lastSync = Date.now();
+        
+        // Update device tracking
+        processedReadings.forEach(reading => {
+          if (reading.deviceId) {
+            realData.devices.set(reading.deviceId, {
+              lastSeen: Date.now(),
+              totalReadings: (realData.devices.get(reading.deviceId)?.totalReadings || 0) + 1,
+              lastLocation: {
+                latitude: reading.latitude,
+                longitude: reading.longitude
+              },
+              batteryLevel: reading.batteryLevel,
+              confidence: reading.confidence
+            });
+          }
+        });
+        
+        console.log(`📊 Synced ${readings.length} real temperature readings from ${processedReadings[0]?.deviceId}`);
+        console.log(`🌡️  Temperature: ${processedReadings[0]?.temperature}°C at ${processedReadings[0]?.latitude?.toFixed(4)}, ${processedReadings[0]?.longitude?.toFixed(4)}`);
+        
+        // Keep only last 1000 readings to prevent memory issues
+        if (realData.readings.length > 1000) {
+          realData.readings = realData.readings.slice(-1000);
+        }
         
         res.writeHead(200);
         res.end(JSON.stringify({
           success: true,
           synced: readings.length,
+          totalReadings: realData.readings.length,
+          activeDevices: realData.devices.size,
           timestamp: Date.now()
         }));
       } catch (error) {
+        console.error('Error processing readings:', error);
         res.writeHead(400);
         res.end(JSON.stringify({ error: 'Invalid JSON' }));
       }
@@ -350,6 +467,13 @@ function handleSyncReadings(req, res) {
     res.writeHead(405);
     res.end(JSON.stringify({ error: 'Method not allowed' }));
   }
+}
+
+function coordsToHexId(lat, lng) {
+  if (!lat || !lng) return '00000000';
+  const latHex = Math.floor((lat + 90) * 1000000).toString(16);
+  const lngHex = Math.floor((lng + 180) * 1000000).toString(16);
+  return `${latHex.slice(-4)}${lngHex.slice(-4)}`.padStart(8, '0');
 }
 
 // Start server
